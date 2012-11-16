@@ -1,0 +1,37 @@
+	Prototype implementation of type inference for higher-rank types
+	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is a small but complete implementation of type inference for higher-rank
+types.  There are the following files:
+
+  Main.lhs	   Test harness
+   
+  TcTerm.lhs	   The main type inference engine
+   
+  TcMonad.lhs	   The type inference monad
+
+  BasicTypes.lhs   Data type declarations, for terms and types
+
+  Parser.lhs	   A simple combinator parser
+
+
+
+To get started:
+
+	ghci Main.lhs
+
+The prompt type
+
+	tcs "\\x.x"
+
+to type-check an expression written as a literal string, or
+
+	tcf "foo.test"
+
+to type-check an expression in a file foo.test
+
+
+
+Shortomings:
+  Error messages are very poor
+  The language is too small to be much fun
