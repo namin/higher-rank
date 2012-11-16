@@ -24,9 +24,11 @@ import BasicTypes
 import Parser
 import Text.PrettyPrint.HughesPJ
 import Text.ParserCombinators.Parsec
+import Data.Maybe
 
-import IO (hPutStrLn, stderr)
-import System (getArgs, exitWith, ExitCode(..))
+import System.IO (hPutStrLn, stderr)
+import System.Environment (getArgs)
+import System.Exit (exitWith, ExitCode(..))
 
 main :: IO ()
 main = do args <- getArgs

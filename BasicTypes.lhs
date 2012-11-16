@@ -6,8 +6,8 @@ module BasicTypes where
 
 import Text.PrettyPrint.HughesPJ
 import Data.IORef
-import List( nub )
-import Maybe( fromMaybe )
+import Data.List( nub )
+import Data.Maybe( fromMaybe )
 
 infixr 4 -->     -- The arrow type constructor
 infixl 4 `App`   -- Application

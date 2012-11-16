@@ -21,7 +21,7 @@ import BasicTypes
 import qualified Data.Map as Map
 import Text.PrettyPrint.HughesPJ
 import Data.IORef
-import List( nub, (\\) )
+import Data.List( nub, (\\) )
 
 ------------------------------------------
 --      The monad itself                --

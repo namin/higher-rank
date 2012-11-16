@@ -4,7 +4,7 @@ module TcTerm where
 import BasicTypes
 import Data.IORef
 import TcMonad
-import List( (\\) )
+import Data.List( (\\) )
 import Text.PrettyPrint.HughesPJ
 
 ------------------------------------------
