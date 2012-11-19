@@ -32,6 +32,6 @@ to type-check an expression in a file foo.test
 
 
 
-Shortomings:
+Shortcomings:
   Error messages are very poor
   The language is too small to be much fun
