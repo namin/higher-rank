@@ -2,6 +2,7 @@ Parser for the little language of the paper
 
   exp ::= integer
 	| var
+	| \\ x . exp | \\ x :: sig . exp |
 	| exp1 exp2
 	| let var = exp1 in exp2
 	| exp :: sig
