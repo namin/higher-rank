@@ -16,7 +16,7 @@ typecheck e = do { ty <- inferSigma e
                  ; zonkType ty }
 
 -----------------------------------
---      The expected type       -- 
+--      The expected type       --
 -----------------------------------
 
 data Expected a = Infer (IORef a) | Check a
@@ -31,7 +31,7 @@ checkRho :: Term -> Rho -> Tc ()
 checkRho expr ty = tcRho expr (Check ty)
 
 inferRho :: Term -> Tc Rho
-inferRho expr 
+inferRho expr
   = do { ref <- newTcRef (error "inferRho: empty result")
        ; tcRho expr (Infer ref)
        ; readTcRef ref }
@@ -42,8 +42,8 @@ tcRho :: Term -> Expected Rho -> Tc ()
 tcRho (Lit _) exp_ty
   = instSigma intType exp_ty
 
-tcRho (Var v) exp_ty 
-  = do { v_sigma <- lookupVar v 
+tcRho (Var v) exp_ty
+  = do { v_sigma <- lookupVar v
        ; instSigma v_sigma exp_ty }
 
 tcRho (App fun arg) exp_ty
@@ -53,7 +53,7 @@ tcRho (App fun arg) exp_ty
        ; instSigma res_ty exp_ty }
 
 tcRho (Lam var body) (Check exp_ty)
-  = do { (var_ty, body_ty) <- unifyFun exp_ty 
+  = do { (var_ty, body_ty) <- unifyFun exp_ty
        ; extendVarEnv var var_ty (checkRho body body_ty) }
 
 tcRho (Lam var body) (Infer ref)

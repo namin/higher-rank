@@ -4,6 +4,7 @@ module BasicTypes where
 -- This module defines the basic types used by the type checker
 -- Everything defined in here is exported
 
+import Prelude hiding ((<>))
 import Text.PrettyPrint.HughesPJ
 import Data.IORef
 import Data.List( nub )
@@ -13,14 +14,14 @@ infixr 4 -->     -- The arrow type constructor
 infixl 4 `App`   -- Application
 
 -----------------------------------
---      Ubiquitous types        -- 
+--      Ubiquitous types        --
 -----------------------------------
 
 type Name = String      -- Names are very simple
 
 
 -----------------------------------
---      Expressions             -- 
+--      Expressions             --
 -----------------------------------
                                   -- Examples below
 data Term = Var Name              -- x
@@ -38,24 +39,24 @@ atomicTerm _       = False
 
 
 -----------------------------------
---      Types                   -- 
+--      Types                   --
 -----------------------------------
 
 type Sigma = Type
-type Rho   = Type	-- No top-level ForAll
-type Tau   = Type	-- No ForAlls anywhere
+type Rho   = Type -- No top-level ForAll
+type Tau   = Type -- No ForAlls anywhere
 
-data Type = ForAll [TyVar] Rho	  -- Forall type
-	  | Fun    Type Type 	  -- Function type
-	  | TyCon  TyCon      	  -- Type constants
-	  | TyVar  TyVar      	  -- Always bound by a ForAll
-	  | MetaTv MetaTv     	  -- A meta type variable
+data Type = ForAll [TyVar] Rho -- Forall type
+    | Fun    Type Type      -- Function type
+    | TyCon  TyCon          -- Type constants
+    | TyVar  TyVar          -- Always bound by a ForAll
+    | MetaTv MetaTv         -- A meta type variable
 
 data TyVar
-  = BoundTv String		-- A type variable bound by a ForAll
+  = BoundTv String  -- A type variable bound by a ForAll
 
-  | SkolemTv String Uniq	-- A skolem constant; the String is 
-				-- just to improve error messages
+  | SkolemTv String Uniq  -- A skolem constant; the String is
+                          -- just to improve error messages
 
 data MetaTv = Meta Uniq TyRef  -- Can unify with any tau-type
 
@@ -86,32 +87,32 @@ intType  = TyCon IntT
 boolType = TyCon BoolT
 
 ---------------------------------
---	Free and bound variables
+--  Free and bound variables
 
 metaTvs :: [Type] -> [MetaTv]
 -- Get the MetaTvs from a type; no duplicates in result
 metaTvs tys = foldr go [] tys
   where
     go (MetaTv tv)   acc
-	| tv `elem` acc  = acc
-	| otherwise	 = tv : acc
+      | tv `elem` acc  = acc
+      | otherwise  = tv : acc
     go (TyVar _)     acc = acc
     go (TyCon _)     acc = acc
     go (Fun arg res) acc = go arg (go res acc)
-    go (ForAll _ ty) acc = go ty acc	-- ForAll binds TyVars only
+    go (ForAll _ ty) acc = go ty acc  -- ForAll binds TyVars only
 
 freeTyVars :: [Type] -> [TyVar]
 -- Get the free TyVars from a type; no duplicates in result
 freeTyVars tys = foldr (go []) [] tys
-  where 
-    go :: [TyVar]	-- Ignore occurrences of bound type variables
-       -> Type		-- Type to look at
-       -> [TyVar]	-- Accumulates result
+  where
+    go :: [TyVar] -- Ignore occurrences of bound type variables
+       -> Type    -- Type to look at
+       -> [TyVar] -- Accumulates result
        -> [TyVar]
-    go bound (TyVar tv)      acc 
-	| tv `elem` bound        = acc
-	| tv `elem` acc		 = acc
-	| otherwise		 = tv : acc
+    go bound (TyVar tv)      acc
+     | tv `elem` bound     = acc
+     | tv `elem` acc = acc
+     | otherwise     = tv : acc
     go bound (MetaTv _)      acc = acc
     go bound (TyCon _)       acc = acc
     go bound (Fun arg res)   acc = go bound arg (go bound res acc)
@@ -154,7 +155,7 @@ subst_ty env (ForAll ns rho) = ForAll ns (subst_ty env' rho)
 
 
 -----------------------------------
---      Pretty printing class   -- 
+--      Pretty printing class   --
 -----------------------------------
 
 class Outputable a where
@@ -176,7 +177,7 @@ instance Outputable Term where
    ppr (Lam v e)     = sep [char '\\' <> pprName v <> text ".", ppr e]
    ppr (ALam v t e)  = sep [char '\\' <> parens (pprName v <> dcolon <> ppr t)
                                       <> text ".", ppr e]
-   ppr (Let v rhs b) = sep [text "let {", 
+   ppr (Let v rhs b) = sep [text "let {",
                             nest 2 (pprName v <+> equals <+> ppr rhs <+> char '}') ,
                             text "in",
                             ppr b]
@@ -224,7 +225,7 @@ atomicPrec = 3  -- Precedence of t
 precType :: Type -> Precedence
 precType (ForAll _ _) = topPrec
 precType (Fun _ _)    = arrPrec
-precType _            = atomicPrec   
+precType _            = atomicPrec
         -- All the types are be atomic
 
 pprParendType :: Type -> Doc
@@ -237,10 +238,10 @@ pprType p ty | p >= precType ty = parens (ppr_type ty)
              | otherwise        = ppr_type ty
 
 ppr_type :: Type -> Doc         -- No parens
-ppr_type (ForAll ns ty) = sep [text "forall" <+> 
-                                  hsep (map ppr ns) <> dot, 
+ppr_type (ForAll ns ty) = sep [text "forall" <+>
+                                  hsep (map ppr ns) <> dot,
                                ppr ty]
-ppr_type (Fun arg res)  = sep [pprType arrPrec arg <+> text "->", 
+ppr_type (Fun arg res)  = sep [pprType arrPrec arg <+> text "->",
                                pprType (arrPrec-1) res]
 ppr_type (TyCon tc)     = ppr_tc tc
 ppr_type (TyVar n)      = ppr n

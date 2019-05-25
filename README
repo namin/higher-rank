@@ -5,9 +5,9 @@ This is a small but complete implementation of type inference for higher-rank
 types.  There are the following files:
 
   Main.lhs	   Test harness
-   
+
   TcTerm.lhs	   The main type inference engine
-   
+
   TcMonad.lhs	   The type inference monad
 
   BasicTypes.lhs   Data type declarations, for terms and types

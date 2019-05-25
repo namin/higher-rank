@@ -4,17 +4,17 @@ module TcMonad(
         runTc, ErrMsg, lift, check,
 
         -- Environment manipulation
-        extendVarEnv, lookupVar, 
- 	getEnvTypes, getFreeTyVars, getMetaTyVars,
+        extendVarEnv, lookupVar,
+        getEnvTypes, getFreeTyVars, getMetaTyVars,
 
         -- Types and unification
-        newTyVarTy, 
+        newTyVarTy,
         instantiate, skolemise, zonkType, quantify,
         unify, unifyFun,
 
         -- Ref cells
         newTcRef, readTcRef, writeTcRef
-        
+
     ) where
 
 import BasicTypes
@@ -27,16 +27,32 @@ import Data.List( nub, (\\) )
 --      The monad itself                --
 ------------------------------------------
 
-data TcEnv 
+data TcEnv
   = TcEnv { uniqs   :: IORef Uniq,         -- Unique supply
             var_env :: Map.Map Name Sigma  -- Type environment for term variables
-    }   
+    }
 
 newtype Tc a = Tc (TcEnv -> IO (Either ErrMsg a))
 unTc :: Tc a ->   (TcEnv -> IO (Either ErrMsg a))
 unTc (Tc a)  = a
 
 type ErrMsg = Doc
+
+instance Functor Tc where
+  fmap f x = Tc (\env -> do { x1 <- unTc x env
+                             ; case x1 of
+                                 Left err -> return (Left err)
+                                 Right x2 -> return (Right (f x2)) })
+
+instance Applicative Tc where
+   pure x = Tc (\_env -> return (Right x))
+   f <*> x  = Tc (\env -> do { f1 <- unTc f env
+                              ; case f1 of
+                                  Left err -> return (Left err)
+                                  Right f2  -> do { x1 <- unTc x env
+                                                   ; case x1 of
+                                                       Left err -> return (Left err)
+                                                       Right x2 -> return (Right (f2 x2)) } })
 
 instance Monad Tc where
    return x = Tc (\_env -> return (Right x))
@@ -57,11 +73,11 @@ runTc :: [(Name,Sigma)] -> Tc a -> IO (Either ErrMsg a)
 -- Run type-check, given an initial environment
 runTc binds (Tc tc)
   = do { ref <- newIORef 0
-       ; let { env = TcEnv { uniqs = ref, 
+       ; let { env = TcEnv { uniqs = ref,
                              var_env = Map.fromList binds } }
        ; tc env }
   where
-    
+
 lift :: IO a -> Tc a
 -- Lift a state transformer action into the typechecker monad
 -- ignores the environment and always succeeds
@@ -82,7 +98,7 @@ writeTcRef r v = lift (writeIORef r v)
 --------------------------------------------------
 
 extendVarEnv :: Name -> Sigma -> Tc a -> Tc a
-extendVarEnv var ty (Tc m) 
+extendVarEnv var ty (Tc m)
   = Tc (\env -> m (extend env))
   where
     extend env = env { var_env = Map.insert var ty (var_env env) }
@@ -106,12 +122,12 @@ newTyVarTy = do { tv <- newMetaTyVar
                 ; return (MetaTv tv) }
 
 newMetaTyVar :: Tc MetaTv
-newMetaTyVar = do { uniq <- newUnique 
-                  ; tref <- newTcRef Nothing 
+newMetaTyVar = do { uniq <- newUnique
+                  ; tref <- newTcRef Nothing
                   ; return (Meta uniq tref) }
 
 newSkolemTyVar :: TyVar -> Tc TyVar
-newSkolemTyVar tv = do { uniq <- newUnique 
+newSkolemTyVar tv = do { uniq <- newUnique
                        ; return (SkolemTv (tyVarName tv) uniq) }
 
 
@@ -135,23 +151,23 @@ newUnique = Tc (\ (TcEnv {uniqs = ref}) ->
 instantiate :: Sigma -> Tc Rho
 -- Instantiate the topmost for-alls of the argument type
 -- with flexible type variables
-instantiate (ForAll tvs ty) 
+instantiate (ForAll tvs ty)
   = do { tvs' <- mapM (\_ -> newMetaTyVar) tvs
        ; return (substTy tvs (map MetaTv tvs') ty) }
 instantiate ty
   = return ty
 
 skolemise :: Sigma -> Tc ([TyVar], Rho)
--- Performs deep skolemisation, retuning the 
+-- Performs deep skolemisation, retuning the
 -- skolem constants and the skolemised type
-skolemise (ForAll tvs ty)	-- Rule PRPOLY
+skolemise (ForAll tvs ty)  -- Rule PRPOLY
   = do { sks1 <- mapM newSkolemTyVar tvs
        ; (sks2, ty') <- skolemise (substTy tvs (map TyVar sks1) ty)
        ; return (sks1 ++ sks2, ty') }
-skolemise (Fun arg_ty res_ty)	-- Rule PRFUN
+skolemise (Fun arg_ty res_ty)  -- Rule PRFUN
   = do { (sks, res_ty') <- skolemise res_ty
        ; return (sks, Fun arg_ty res_ty') }
-skolemise ty 			-- Rule PRMONO
+skolemise ty  -- Rule PRMONO
   = return ([], ty)
 
 ------------------------------------------
@@ -161,7 +177,7 @@ skolemise ty 			-- Rule PRMONO
 quantify :: [MetaTv] -> Rho -> Tc Sigma
 -- Quantify over the specified type variables (all flexible)
 quantify tvs ty
-  = do { mapM_ bind (tvs `zip` new_bndrs)   -- 'bind' is just a cunning way 
+  = do { mapM_ bind (tvs `zip` new_bndrs)   -- 'bind' is just a cunning way
        ; ty' <- zonkType ty                 -- of doing the substitution
        ; return (ForAll new_bndrs ty') }
   where
@@ -169,7 +185,7 @@ quantify tvs ty
     new_bndrs  = take (length tvs) (allBinders \\ used_bndrs)
     bind (tv, name) = writeTv tv (TyVar name)
 
-allBinders :: [TyVar]    -- a,b,..z, a1, b1,... z1, a2, b2,... 
+allBinders :: [TyVar]    -- a,b,..z, a1, b1,... z1, a2, b2,...
 allBinders = [ BoundTv [x]          | x <- ['a'..'z'] ] ++
              [ BoundTv (x : show i) | i <- [1 :: Integer ..], x <- ['a'..'z']]
 
@@ -179,20 +195,20 @@ allBinders = [ BoundTv [x]          | x <- ['a'..'z'] ] ++
 
 getEnvTypes :: Tc [Type]
   -- Get the types mentioned in the environment
-getEnvTypes = do { env <- getEnv; 
-	         ; return (Map.elems env) }
+getEnvTypes = do { env <- getEnv;
+                 ; return (Map.elems env) }
 
 getMetaTyVars :: [Type] -> Tc [MetaTv]
 -- This function takes account of zonking, and returns a set
 -- (no duplicates) of unbound meta-type variables
 getMetaTyVars tys = do { tys' <- mapM zonkType tys
-		    ; return (metaTvs tys') }
+                       ; return (metaTvs tys') }
 
 getFreeTyVars :: [Type] -> Tc [TyVar]
 -- This function takes account of zonking, and returns a set
 -- (no duplicates) of free type variables
 getFreeTyVars tys = do { tys' <- mapM zonkType tys
-		       ; return (freeTyVars tys') }
+                       ; return (freeTyVars tys') }
 
 ------------------------------------------
 --      Zonking                         --
@@ -200,9 +216,9 @@ getFreeTyVars tys = do { tys' <- mapM zonkType tys
 ------------------------------------------
 
 zonkType :: Type -> Tc Type
-zonkType (ForAll ns ty) = do { ty' <- zonkType ty 
+zonkType (ForAll ns ty) = do { ty' <- zonkType ty
                              ; return (ForAll ns ty') }
-zonkType (Fun arg res)  = do { arg' <- zonkType arg 
+zonkType (Fun arg res)  = do { arg' <- zonkType arg
                              ; res' <- zonkType res
                              ; return (Fun arg' res') }
 zonkType (TyCon tc)     = return (TyCon tc)
@@ -222,9 +238,9 @@ zonkType (MetaTv tv)    -- A mutable type variable
 
 unify :: Tau -> Tau -> Tc ()
 
-unify ty1 ty2 
+unify ty1 ty2
   | badType ty1 || badType ty2  -- Compiler error
-  = failTc (text "Panic! Unexpected types in unification:" <+> 
+  = failTc (text "Panic! Unexpected types in unification:" <+>
             vcat [ppr ty1, ppr ty2])
 
 unify (TyVar tv1)  (TyVar tv2)  | tv1 == tv2 = return ()
@@ -236,8 +252,8 @@ unify (Fun arg1 res1)
       (Fun arg2 res2)
   = do { unify arg1 arg2; unify res1 res2 }
 
-unify (TyCon tc1) (TyCon tc2) 
-  | tc1 == tc2 
+unify (TyCon tc1) (TyCon tc2)
+  | tc1 == tc2
   = return ()
 
 unify ty1 ty2 = failTc (text "Cannot unify types:" <+> vcat [ppr ty1, ppr ty2])
@@ -246,7 +262,7 @@ unify ty1 ty2 = failTc (text "Cannot unify types:" <+> vcat [ppr ty1, ppr ty2])
 unifyVar :: MetaTv -> Tau -> Tc ()
 -- Invariant: tv1 is a flexible type variable
 unifyVar tv1 ty2        -- Check whether tv1 is bound
-  = do { mb_ty1 <- readTv tv1   
+  = do { mb_ty1 <- readTv tv1
        ; case mb_ty1 of
            Just ty1 -> unify ty1 ty2
            Nothing  -> unifyUnboundVar tv1 ty2 }
@@ -254,12 +270,12 @@ unifyVar tv1 ty2        -- Check whether tv1 is bound
 unifyUnboundVar :: MetaTv -> Tau -> Tc ()
 -- Invariant: the flexible type variable tv1 is not bound
 unifyUnboundVar tv1 ty2@(MetaTv tv2)
-  = do { -- We know that tv1 /= tv2 (else the 
+  = do { -- We know that tv1 /= tv2 (else the
          -- top case in unify would catch it)
          mb_ty2 <- readTv tv2
        ; case mb_ty2 of
            Just ty2' -> unify (MetaTv tv1) ty2'
-           Nothing  -> writeTv tv1 ty2 } 
+           Nothing  -> writeTv tv1 ty2 }
 
 unifyUnboundVar tv1 ty2
   = do { tvs2 <- getMetaTyVars [ty2]
@@ -282,11 +298,11 @@ unifyFun tau           = do { arg_ty <- newTyVarTy
 occursCheckErr :: MetaTv -> Tau -> Tc ()
 -- Raise an occurs-check error
 occursCheckErr tv ty
-  = failTc (text "Occurs check for" <+> quotes (ppr tv) <+> 
+  = failTc (text "Occurs check for" <+> quotes (ppr tv) <+>
             text "in:" <+> ppr ty)
 
 badType :: Tau -> Bool
 -- Tells which types should never be encountered during unification
 badType (TyVar (BoundTv _)) = True
-badType _         	    = False
+badType _                   = False
 \end{code}
